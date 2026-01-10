@@ -1,97 +1,81 @@
 import streamlit as st
-import sqlite3
-import pandas as pd
+import json
 
-# --- 資料庫邏輯 ---
-def init_db():
-    conn = sqlite3.connect('friends.db')
-    c = conn.cursor()
-    c.execute('''CREATE TABLE IF NOT EXISTS friends 
-                 (id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT, interests TEXT, likes TEXT, dislikes TEXT, notes TEXT)''')
-    conn.commit()
-    conn.close()
+st.set_page_config(page_title="我的私人朋友筆記", page_icon="💾")
 
-def get_all_friends():
-    conn = sqlite3.connect('friends.db')
-    df = pd.read_sql_query("SELECT * FROM friends", conn)
-    conn.close()
-    return df
+# --- 初始化：暫存清單 ---
+if 'my_friends' not in st.session_state:
+    st.session_state['my_friends'] = []
 
-# --- 介面開始 ---
-init_db()
-st.set_page_config(page_title="我的朋友筆記本", layout="wide")
+# --- 側邊欄：檔案管理 ---
+st.sidebar.title("📁 存檔與讀檔")
 
-st.sidebar.title("功能選單")
-page = st.sidebar.radio("跳轉至：", ["📝 記錄新朋友", "👀 查看與修改"])
+uploaded_file = st.sidebar.file_uploader("選取你的筆記檔 (.json)", type="json")
+if uploaded_file is not None:
+    # 只有在 session 為空時才自動載入，避免覆蓋正在編輯的內容
+    if not st.session_state['my_friends']:
+        st.session_state['my_friends'] = json.load(uploaded_file)
+        st.sidebar.success("讀取成功！")
 
-if page == "📝 記錄新朋友":
-    st.title("📝 錄入新朋友資料")
-    with st.form("my_form"):
-        name = st.text_input("姓名")
+# 存檔按鈕
+if st.session_state['my_friends']:
+    json_data = json.dumps(st.session_state['my_friends'], ensure_ascii=False, indent=4)
+    st.sidebar.download_button(
+        label="📥 儲存並下載最新筆記",
+        data=json_data,
+        file_name="my_friend_notes.json",
+        mime="application/json"
+    )
+
+# --- 主要顯示區 ---
+st.title("💾 我的私人朋友筆記")
+tab1, tab2 = st.tabs(["👀 溫習與修改", "➕ 新增朋友"])
+
+with tab2:
+    st.subheader("記錄新發現")
+    with st.form("add_form", clear_on_submit=True):
+        name = st.text_input("朋友的名字")
         ints = st.text_input("興趣")
         lks = st.text_area("喜歡")
         dlks = st.text_area("不喜歡")
-        nts = st.text_area("備註")
-        if st.form_submit_button("儲存"):
-            conn = sqlite3.connect('friends.db')
-            conn.execute("INSERT INTO friends (name,interests,likes,dislikes,notes) VALUES (?,?,?,?,?)", (name,ints,lks,dlks,nts))
-            conn.commit()
-            conn.close()
-            st.success("儲存成功！")
+        if st.form_submit_button("暫存到清單"):
+            if name:
+                new_entry = {"name": name, "interests": ints, "likes": lks, "dislikes": dlks}
+                st.session_state['my_friends'].append(new_entry)
+                st.success(f"已加入 {name}。記得按左側『儲存』下載檔案喔！")
+                st.rerun()
 
-elif page == "👀 查看與修改":
-    st.title("👀 溫習與編輯")
-    df = get_all_friends()
-    
-    if df.empty:
-        st.write("目前資料庫是空的。")
+with tab1:
+    if not st.session_state['my_friends']:
+        st.info("目前沒有資料。請讀取舊檔或新增朋友。")
     else:
-        # 1. 選擇朋友
-        friend_names = df['name'].tolist()
-        choice = st.selectbox("你想看誰的資料？", friend_names)
+        friend_names = [f["name"] for f in st.session_state['my_friends']]
+        selected_idx = st.selectbox("你想看誰？", range(len(friend_names)), format_func=lambda x: friend_names[x])
         
-        # 2. 抓取資料
-        data = df[df['name'] == choice].iloc[0]
-        fid = int(data['id'])
-        
-        # 3. 顯示區 (用醒目的框框)
-        st.markdown(f"### 📋 {choice} 的個人檔案")
-        col1, col2 = st.columns(2)
-        with col1:
-            st.info(f"**🌟 興趣：**\n\n{data['interests']}")
-            st.success(f"**❤️ 喜歡：**\n\n{data['likes']}")
-        with col2:
-            st.error(f"**🚫 不喜歡：**\n\n{data['dislikes']}")
-            st.warning(f"**📌 備忘：**\n\n{data['notes']}")
+        # 取得目前選中的朋友資料
+        current_friend = st.session_state['my_friends'][selected_idx]
 
-        st.divider()
-
-        # 4. 編輯區 (直接顯示，不再隱藏)
-        st.subheader("🛠️ 編輯資料（如需修改請直接在下方輸入）")
+        # 顯示區
+        st.markdown(f"### 👋 這是 **{current_friend['name']}**")
         
-        # 使用 key 確保每個輸入框是唯一的
-        new_name = st.text_input("修改姓名", value=data['name'], key="un")
-        new_ints = st.text_input("修改興趣", value=data['interests'], key="ui")
-        new_lks = st.text_area("修改喜歡", value=data['likes'], key="ul")
-        new_dlks = st.text_area("修改不喜歡", value=data['dislikes'], key="ud")
-        new_nts = st.text_area("修改備註", value=data['notes'], key="unot")
-        
-        c_btn1, c_btn2 = st.columns(2)
-        with c_btn1:
-            if st.button("💾 儲存修改內容"):
-                conn = sqlite3.connect('friends.db')
-                conn.execute("UPDATE friends SET name=?, interests=?, likes=?, dislikes=?, notes=? WHERE id=?",
-                             (new_name, new_ints, new_lks, new_dlks, new_nts, fid))
-                conn.commit()
-                conn.close()
-                st.success("修改成功！正在刷新...")
-                st.rerun()
-        
-        with c_btn2:
-            if st.button("🗑️ 刪除此人資料"):
-                conn = sqlite3.connect('friends.db')
-                conn.execute("DELETE FROM friends WHERE id=?", (fid,))
-                conn.commit()
-                conn.close()
-                st.warning("已刪除！")
-                st.rerun()
+        # --- 修改與刪除區 (直接展開) ---
+        with st.expander("🛠️ 修改或刪除資料"):
+            new_name = st.text_input("名字", value=current_friend['name'])
+            new_ints = st.text_input("興趣", value=current_friend['interests'])
+            new_lks = st.text_area("喜歡", value=current_friend['likes'])
+            new_dlks = st.text_area("不喜歡", value=current_friend['dislikes'])
+            
+            col1, col2 = st.columns(2)
+            with col1:
+                if st.button("💾 確認修改"):
+                    # 更新暫存清單中的資料
+                    st.session_state['my_friends'][selected_idx] = {
+                        "name": new_name, "interests": new_ints, "likes": new_lks, "dislikes": new_dlks
+                    }
+                    st.success("修改成功！記得按左側按鈕下載存檔。")
+                    st.rerun()
+            with col2:
+                if st.button("🗑️ 刪除此人"):
+                    st.session_state['my_friends'].pop(selected_idx)
+                    st.warning("已從清單移除。記得下載新存檔以更新檔案。")
+                    st.rerun()
