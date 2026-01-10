@@ -79,3 +79,21 @@ with tab1:
                     st.session_state['my_friends'].pop(selected_idx)
                     st.warning("已從清單移除。記得下載新存檔以更新檔案。")
                     st.rerun()
+
+st.divider() # 加入一條分隔線
+st.subheader("💾 永久保存我的筆記")
+if st.session_state['my_friends']:
+    # 準備下載資料
+    json_data = json.dumps(st.session_state['my_friends'], ensure_ascii=False, indent=4)
+    
+    # 這裡我們把按鈕放在主頁面，並加上明顯的提示
+    st.download_button(
+        label="📥 點我：儲存並下載最新筆記到手機",
+        data=json_data,
+        file_name="my_friend_notes.json",
+        mime="application/json",
+        use_container_width=True # 讓按鈕在手機上變寬，好點擊
+    )
+    st.caption("⚠️ 溫馨提示：每次新增、修改或刪除資料後，請務必點擊此按鈕下載新檔案，否則關閉網頁後資料會消失喔！")
+else:
+    st.write("目前清單是空的，還不需要存檔。")
