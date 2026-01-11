@@ -71,8 +71,8 @@ with tab1:
         selected_idx = st.selectbox("你想溫習誰？", range(len(friend_names)), format_func=lambda x: friend_names[x])
         f = current_list[selected_idx]
 
-        # --- 朋友概覽 ---
-        col_img, col_info = st.columns([1, 2])
+        # --- 朋友概覽 (頂部) ---
+        col_img, col_info = st.columns([1, 3])
         with col_img:
             if f.get('photo'):
                 st.image(base64.b64decode(f['photo']), width=200)
@@ -81,33 +81,49 @@ with tab1:
         with col_info:
             st.header(f"{f['name']}")
             st.write(f"🎂 **生日：** {f.get('birthday')} | 👨‍👩‍👧‍👦 **家族：** {f.get('siblings')}")
+            st.write(f"🌟 **核心興趣：** {f.get('interests')}")
             st.caption(f"📅 資訊最後更新：{f.get('last_updated')}")
 
         st.divider()
 
-        # --- 社交建議 (根據你的建議修改) ---
+        # --- 新增：詳細資料表列 ---
+        st.subheader("📊 朋友資料概覽")
+        col_likes, col_dislikes = st.columns(2)
+        with col_likes:
+            st.success("❤️ **喜歡的事物**")
+            if f.get('likes'):
+                st.write(f.get('likes'))
+            else:
+                st.write("尚未記錄")
+        
+        with col_dislikes:
+            st.error("🚫 **不喜歡/避雷區**")
+            if f.get('dislikes'):
+                st.write(f.get('dislikes'))
+            else:
+                st.write("尚未記錄")
+
+        st.divider()
+
+        # --- 社交建議 ---
         topic = f.get('interests') if f.get('interests') else (f.get('likes') if f.get('likes') else "你喜歡的東西")
         topic_short = (topic[:15] + '..') if len(topic) > 15 else topic
 
         st.subheader("💡 社交教練：嘗試用「六何法」聊天")
-        col_tips, col_warn = st.columns(2)
+        st.info(f"✅ **與 {f['name']} 開啟話題的句子：**")
         
-        with col_tips:
-            st.info(f"✅ **與 {f['name']} 開啟話題：**")
+        c1, c2 = st.columns(2)
+        with c1:
             st.write(f"**何人：** 「除了你，還有誰也喜歡 **{topic_short}** 嗎？」")
             st.write(f"**何時：** 「你通常在什麼時候睇/玩有關 **{topic_short}** 的東西？」")
             st.write(f"**何地：** 「你最喜歡在哪裡看/玩有關 **{topic_short}** 的東西？」")
+        with c2:
             st.write(f"**何事：** 「關於 **{topic_short}**，你最近有什麼新發現嗎？」")
             st.write(f"**為何：** 「為什麼你會對 **{topic_short}** 這麼感興趣？」")
             st.write(f"**如何：** 「如果我想學/試試有關 **{topic_short}**，要怎麼開始？」")
         
-        with col_warn:
-            st.error("🚫 **避雷提醒 (絕對不要談及)：**")
-            if f.get('dislikes'):
-                st.markdown(f"### 👉 **{f['dislikes']}**")
-                st.warning("⚠️ **如果對方不開心了：**\n\n可以說：「對不起，我們換個話題吧。」然後改聊他喜歡的內容。")
-            else:
-                st.write("目前尚未記錄地雷。")
+        if f.get('dislikes'):
+            st.warning(f"⚠️ **提醒：** 聊天時請避開提及 **{f['dislikes']}**。")
 
         # --- 修改功能 ---
         st.divider()
@@ -136,7 +152,7 @@ with tab1:
                     st.session_state['my_friends'].pop(selected_idx)
                     st.rerun()
 
-# --- 底部下載按鈕 ---
+# --- 5. 底部下載按鈕 ---
 st.divider()
 if len(st.session_state.get('my_friends', [])) > 0:
     json_data = json.dumps(st.session_state['my_friends'], ensure_ascii=False, indent=4)
